@@ -1,3 +1,4 @@
+const { stringify } = require('querystring');
 const Book = require('../models/Book');
 const fs = require('fs')
 
@@ -8,7 +9,8 @@ exports.allBook = (req, res, next) => {
 
 exports.oneBook = (req, res, next) => {
     Book.findOne({ _id: req.params.id })
-        .then(book => res.status(200).json(book));
+        .then(book => {
+            res.status(200).json(book)})
 }
 
 exports.meilleurLivres = (req, res, next) => {
@@ -57,52 +59,103 @@ exports.deleteOne = (req, res, next) => {
             }
         })
         .catch(error => {
-            res.statu(500).json({ error })
+            res.status(500).json({ error })
         })
 }
 
 exports.updateBook = (req, res, next) => {
-
-    if(req.file){
-        Book.updateOne({_id: req.params.id}, {
-            title: req.body.title,
-            author: req.body.author,
-            imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`,
-            year: req.body.year,
-            genre: req.body.genre
-        })
-        .then(() => {
-            res.status(200).json({msg: "modifications apportés"})
-        })   
+    console.log(req.body.book)
+    if(!req.file){
+        Book.findByIdAndUpdate({_id: req.params.id}, {
+        ...req.body,
+    })
+    .then(res.status(200).json({msg: "ook"}))
     } else {
-        Book.updateOne({_id: req.params.id}, {
-            title: req.body.title,
-            author: req.body.author,
-            year: req.body.year,
-            genre: req.body.genre
+        let tab = req.body.book.split(',')
+        let title = tab[1].split(':')
+        let author = tab[2].split(':')
+        let genre = tab[4].split(':')
+        let year = tab[3].split(':')
+
+        let title1 = title[1].split('"')
+        let author1 = author[1].split('"')
+        let genre1 = genre[1].split('"')
+        let year1 = year[1].split('"')
+        
+        console.log(title1)
+        console.log(author1)
+        console.log(genre1)
+        console.log(year1)
+        
+        Book.findByIdAndUpdate({_id: req.params.id}, {
+            title: title1[1],
+            author: author1[1],
+            year: year1[1],
+            genre: genre1[1],
+            imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`
         })
-        .then(() => {
-            res.status(200).json({msg: "modifications apportés"})
-        })   
-    }
+        .then(res.status(200).json({msg: "ookokok"}))     
+    } 
+    // .then(book => {
+    //     // let tab = book.imageUrl.split("/")
+    //     // console.log(tab[4])
+        
+    //     if(req.file){
+    //         Book.updateOne({_id: req.params.id}, {
+    //             ...req.body.book,
+    //             imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`
+    //         })
+    //         .then(() => {
+    //             res.status(200).json({msg: "modifications apportés"})
+    //         })   
+            
+    //     } else {
+           
+    //         Book.updateOne({_id: req.params.id}, {
+    //             ...req.body
+    //         })
+    //         .then(() => {
+    //             res.status(200).json({msg: "modifications apportés"})
+    //         })   
+    //     }
+    // })       
 }
 
 exports.rateBook = (req, res, next) => {
 
     Book.updateOne({_id: req.params.id }, {
         $push:
-        {ratings: {
+        {rating: {
             userId: req.auth.userId,
-            grade: req.body.ratings
+            grade: req.body.rating
         }}
     })
     .then(() => {
         Book.findOne({_id: req.params.id})
         .then(book => {
-            res.status(200).json({msg: "okok"})
+            let sum=0;
+            let moy=0;
+            function sumMoy(rating){
+                rating.forEach(element => {
+                    sum += element.grade
+                    moy = sum/book.rating.length
+                });
+            }
+            
+            sumMoy(book.rating)
+            
+            Book.updateOne({_id: req.params.id}, {
+                averageRating: moy
+            })
+            .then(() => {
+                    Book.findOne({_id: req.params.id})
+                    .then(book => {
+                        res.status(200).json(book)
+                    })
+                })           
+               
         })
-    })
-      
+    })        
 }
 
 
