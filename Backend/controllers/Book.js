@@ -2,35 +2,41 @@ const { stringify } = require('querystring');
 const Book = require('../models/Book');
 const fs = require('fs')
 
+
 exports.allBook = (req, res, next) => {
     Book.find()
-        .then(books => res.status(200).json(books));
+    .then(books => res.status(200).json(books))
+    .catch(() => res.status(404).json({msg: "Livres non trouvés"}))
 }
 
 exports.oneBook = (req, res, next) => {
     Book.findOne({ _id: req.params.id })
         .then(book => {
             res.status(200).json(book)})
+        .catch(() => {
+                res.status(404).json({ msg: "Livre non trouvé"})
+            })
 }
 
 exports.meilleurLivres = (req, res, next) => {
-
-    Book.find().sort({ averageRating: -1 })
-        .then(book => {
-            const topBook = [];
-            for (i = 0; i < 3; i++) {
-                topBook.push(book[i])
-            }
-            res.status(200).json(topBook)
+    //.limit!!
+    Book.find().sort({ averageRating: -1 }).limit(3)
+        .then(books => {
+            res.status(200).json(books)
+        })
+        .catch(() => {
+            res.status(200).json({msg: "Aucune recommendation"})
         })
 }
 
 exports.createBook = (req, res, next) => {
 
     const bookObject = JSON.parse(req.body.book);
-
+    
+    
     delete bookObject._id;
     delete bookObject._userId;
+
     const book = new Book({
         ...bookObject,
         userId: req.auth.userId,
@@ -38,10 +44,12 @@ exports.createBook = (req, res, next) => {
         rating: [],
         averageRating: 0
     });
+    
 
-    book.save()
-        .then(() => { res.status(201).json({ msg: 'Livre enregistré' }) })
-        .catch(error => { res.status(400).json({ error }) })
+    book
+    .save()
+    .then(() => { res.status(201).json({ msg: 'Livre enregistré' }) })
+    .catch(error => { res.status(400).json({ error }) })
 }
 
 exports.deleteOne = (req, res, next) => {
@@ -64,98 +72,101 @@ exports.deleteOne = (req, res, next) => {
 }
 
 exports.updateBook = (req, res, next) => {
-    console.log(req.body.book)
+    
     if(!req.file){
         Book.findByIdAndUpdate({_id: req.params.id}, {
         ...req.body,
     })
-    .then(res.status(200).json({msg: "ook"}))
+    .then(res.status(200).json({msg: "Livre modifié"}))
     } else {
-        let tab = req.body.book.split(',')
-        let title = tab[1].split(':')
-        let author = tab[2].split(':')
-        let genre = tab[4].split(':')
-        let year = tab[3].split(':')
-
-        let title1 = title[1].split('"')
-        let author1 = author[1].split('"')
-        let genre1 = genre[1].split('"')
-        let year1 = year[1].split('"')
         
-        console.log(title1)
-        console.log(author1)
-        console.log(genre1)
-        console.log(year1)
+        const bodyBook = JSON.parse(req.body.book)
+        
         
         Book.findByIdAndUpdate({_id: req.params.id}, {
-            title: title1[1],
-            author: author1[1],
-            year: year1[1],
-            genre: genre1[1],
+            title: bodyBook.title,
+            author: bodyBook.author,
+            year: bodyBook.year,
+            genre: bodyBook.genre,
             imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`
         })
-        .then(res.status(200).json({msg: "ookokok"}))     
+        .then(res.status(200).json({msg: "Livre modifié avec succès"})) 
+        .catch(() => {
+            res.status(400).json({msg: "Erreur lors de la modification"})
+        })
     } 
-    // .then(book => {
-    //     // let tab = book.imageUrl.split("/")
-    //     // console.log(tab[4])
-        
-    //     if(req.file){
-    //         Book.updateOne({_id: req.params.id}, {
-    //             ...req.body.book,
-    //             imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`
-    //         })
-    //         .then(() => {
-    //             res.status(200).json({msg: "modifications apportés"})
-    //         })   
-            
-    //     } else {
-           
-    //         Book.updateOne({_id: req.params.id}, {
-    //             ...req.body
-    //         })
-    //         .then(() => {
-    //             res.status(200).json({msg: "modifications apportés"})
-    //         })   
-    //     }
-    // })       
+   
 }
 
 exports.rateBook = (req, res, next) => {
 
-    Book.updateOne({_id: req.params.id }, {
-        $push:
-        {rating: {
-            userId: req.auth.userId,
-            grade: req.body.rating
-        }}
+    
+
+    Book.findOne({_id: req.params.id })
+    .then(book => {
+    let testUser = false;
+    book.rating.forEach(element => {
+        if(element.userId === req.auth.userId){
+            testUser = true
+        } 
+        if(testUser === true){
+            res.status(200).json({msg: "Utilisateur présent, vote non accordé"})
+        } 
     })
-    .then(() => {
-        Book.findOne({_id: req.params.id})
-        .then(book => {
-            let sum=0;
-            let moy=0;
-            function sumMoy(rating){
-                rating.forEach(element => {
-                    sum += element.grade
-                    moy = sum/book.rating.length
-                });
-            }
-            
-            sumMoy(book.rating)
-            
-            Book.updateOne({_id: req.params.id}, {
-                averageRating: moy
-            })
-            .then(() => {
-                    Book.findOne({_id: req.params.id})
-                    .then(book => {
-                        res.status(200).json(book)
-                    })
-                })           
-               
+
+    
+    
+
+    if(testUser === false){
+        Book.updateOne({_id: req.params.id }, {
+            $push:
+            {rating: {
+                userId: req.auth.userId,
+                grade: req.body.rating
+            }}
         })
-    })        
+        .then(() => {
+            Book.findOne({_id: req.params.id})
+            .then(book => {
+                let sum=0;
+                let moy=0;
+                function sumMoy(rating){
+                    rating.forEach(element => {
+                        sum += element.grade  
+                    });
+                    moy = sum/book.rating.length
+                }
+                
+                sumMoy(book.rating)
+                
+                Book.updateOne({_id: req.params.id}, {
+                    averageRating: moy
+                })
+                .then(() => {
+                        Book.findOne({_id: req.params.id})
+                        .then(book => {
+                            res.status(200).json(book)
+                        })
+                        .catch(() => {
+                            res.status(404).json({msg: "livre non trouvé"})
+                        })
+                    })
+                    .catch(() => {
+                        res.status(400).json({msg: "Erreur lors de la modification de la note moyenne"})
+                    })           
+                   
+            })
+            .catch(() => {
+                res.status(404).json({msg: "livre non trouvé"})
+            })
+        })
+        .catch(() => {
+            res.status(400).json({msg: "Erreur lors du rajout de la note"})
+        })       
+    }
+    
+})
+.catch(() => res.status(400).json({msg: "Livre non trouvé"}))
 }
 
 

@@ -5,6 +5,7 @@
 /.idea
 # testing
 /coverage
+/images
 
 # production
 /build

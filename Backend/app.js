@@ -4,10 +4,11 @@ const userRoutes = require('./routes/user');
 const bookRoutes = require('./routes/book');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const path = require('path')
+const path = require('path');
 
 const app = express();
 app.use(cors());
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content, Accept, Content-Type, Authorization');
@@ -25,7 +26,7 @@ mongoose.connect('mongodb+srv://clem:clem@cluster0.p4ntkrp.mongodb.net/?retryWri
 .then(() => console.log('Connexion à Mongo ok.'))
 .catch(() => console.log('Connexion à Mongo échouée.'))
 
-app.use('/', bookRoutes);
+app.use('/api/books', bookRoutes);
 app.use('/', userRoutes);
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
